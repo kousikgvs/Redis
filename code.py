@@ -19,10 +19,12 @@ def main() -> None:
 
     # --- Strings ---
     r.set("name", "Alice")
+    r.set("college", "Amrita Vishwa Vidyapeetham")
     r.set("visits", 0)
     r.incr("visits")
     r.incr("visits")
     print("name   :", r.get("name"))
+    print("college:", r.get("college"))
     print("visits :", r.get("visits"))
 
     # Expiration (TTL in seconds)
