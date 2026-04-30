@@ -5,12 +5,17 @@ Prerequisites:
     Redis server running on localhost:6379 (e.g., `docker run -p 6379:6379 redis`)
 """
 
+import os
+
 import redis
 
 
 def main() -> None:
-    # Connect to Redis (decode_responses=True returns str instead of bytes)
-    r = redis.Redis(host="localhost", port=6379, db=0, decode_responses=True)
+    # Connect to Redis (decode_responses=True returns str instead of bytes).
+    # Host/port come from env so the same code works locally and in docker-compose.
+    host = os.getenv("REDIS_HOST", "localhost")
+    port = int(os.getenv("REDIS_PORT", "6379"))
+    r = redis.Redis(host=host, port=port, db=0, decode_responses=True)
 
     # --- Strings ---
     r.set("name", "Alice")

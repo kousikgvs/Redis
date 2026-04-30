@@ -1,0 +1,89 @@
+# This file lists the "boxes" (containers) we want to run together.
+# Compose is a tool that starts and stops all of them with one command.
+# We do not write a "version:" line at the top because new Compose
+# does not need it. Adding it just shows a warning, so we skip it.
+services:
+  # ---------------------------------------------------------------------------
+  # Box #1: Redis. This is our database.
+  # We name it "redis" so the app box can find it just by typing "redis"
+  # as the address. Compose makes that name work like a phone number.
+  # ---------------------------------------------------------------------------
+  redis:
+    # Use a ready-made Redis box from the internet.
+    # "7-alpine" means Redis version 7 on a very tiny Linux (~30 MB).
+    # A small box downloads fast and has fewer parts that can break.
+    # We say "7" so we get bug fixes, but we will not jump to version 8 by surprise.
+    image: redis:7-alpine
+    # Give the running box the simple name "redis".
+    # Without this, Docker would pick a long ugly name on its own.
+    # Now commands like `docker logs redis` are easy to type.
+    container_name: redis
+    # Open a door (port) between your computer and the box.
+    # Left side = your computer, right side = inside the box.
+    # So you can use tools on Windows (like redis-cli) at localhost:6379.
+    # The app box does NOT need this door, it talks inside Docker's own network.
+    ports:
+      - "6379:6379"
+    # Save Redis data into a "named volume" called redis-data.
+    # A volume is like a USB stick that Docker takes care of for us.
+    # If we stop and start again, the data is still there.
+    # We do not use a normal folder on Windows because file paths
+    # on Windows can be tricky inside Linux boxes.
+    volumes:
+      - redis-data:/data
+    # Tell Redis to turn on AOF (Append Only File) mode.
+    # In simple words: Redis writes down every change to a file.
+    # If the box crashes, Redis can read that file and not lose data.
+    # Without this, Redis only saves now and then, and a crash can lose data.
+    # We write the command as a list so no shell is in the middle.
+    # That keeps it simple and lets Redis stop cleanly.
+    command: ["redis-server", "--appendonly", "yes"]
+    # Healthcheck = "is the box really ready, or just starting?"
+    # Without this, our app might try to talk to Redis too soon and crash.
+    healthcheck:
+      # We ask Redis "ping" and wait for "PONG".
+      # If Redis answers, it is ready for real work.
+      test: ["CMD", "redis-cli", "ping"]
+      # Check every 5 seconds. Often enough to start the app fast,
+      # but not so often that we annoy Redis.
+      interval: 5s
+      # If a check takes more than 3 seconds, treat it as failed.
+      # Something is probably wrong.
+      timeout: 3s
+      # Allow up to 5 fails in a row before saying "this box is sick".
+      # 5 tries x 5 seconds = 25 seconds of patience while Redis loads data.
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Box #2: our Python app. It is the program that talks to Redis.
+  # ---------------------------------------------------------------------------
+  app:
+    # Build this box from our Dockerfile in the same folder ("." means here).
+    # So a new teammate just runs `docker compose up` and everything works.
+    build: .
+    # Wait for the redis box BEFORE starting the app box.
+    # We use the long form (with "condition") because we want to wait
+    # until Redis is actually ready, not just "started".
+    depends_on:
+      redis:
+        # Only start the app after the Redis healthcheck says "healthy".
+        # This stops the classic "first run does not work" problem.
+        condition: service_healthy
+    # Pass settings into the app using environment variables,
+    # so we never have to write the Redis address inside the Python code.
+    # Same code works on a laptop AND inside Compose, just by changing the env.
+    environment:
+      # "redis" here is the name of the box above. Compose has a tiny
+      # phone book that turns this name into the right address inside Docker.
+      REDIS_HOST: redis
+      # The normal Redis port. We keep it as a setting so we can
+      # change it later without rebuilding the image.
+      REDIS_PORT: 6379
+
+# This block tells Docker about the named volume we used above.
+# We must list it here, even if it is empty.
+# If we forget, Docker thinks the volume has no name and may throw it away.
+volumes:
+  # Empty value = "use the normal default settings".
+  # Docker will save data on your computer in a place it manages for you.
+  redis-data:
